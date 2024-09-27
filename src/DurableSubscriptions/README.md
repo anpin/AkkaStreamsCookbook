@@ -27,13 +27,13 @@ This application is compromised of two parts:
 To run the server, execute the following command (from the directory of this file):
 
 ```bash
-dotnet run --p project DurableSubscriptions.Server
+dotnet run --project DurableSubscriptions.Server
 ```
 
 To run the client, execute the following command (from the directory of this file):
 
 ```bash
-dotnet run --p project DurableSubscriptions.Client -- -- subscribe {tag1,tag2,tag3} --subscriber-id {yourSubscriberId} [--page-size 10]
+dotnet run --project DurableSubscriptions.Client -- -- subscribe {tag1,tag2,tag3} --subscriber-id {yourSubscriberId} [--page-size 10]
 ```
 
 ### Available Tags
