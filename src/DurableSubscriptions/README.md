@@ -33,7 +33,7 @@ dotnet run --project DurableSubscriptions.Server
 To run the client, execute the following command (from the directory of this file):
 
 ```bash
-dotnet run --project DurableSubscriptions.Client -- -- subscribe {tag1,tag2,tag3} --subscriber-id {yourSubscriberId} [--page-size 10]
+dotnet run --project DurableSubscriptions.Client -- subscribe {tag1,tag2,tag3} --subscriber-id {yourSubscriberId} [--page-size 10]
 ```
 
 ### Available Tags
@@ -51,5 +51,5 @@ You can use any arbitrary tags you want, but these are the ones for which we aut
 ### Example Client Execution
 
 ```bash
-dotnet run --project DurableSubscriptions.Client -- -- subscribe product-oil,product-gold --subscriber-id goldOil1
+dotnet run --project DurableSubscriptions.Client -- subscribe product-oil,product-gold --subscriber-id goldOil1
 ```
