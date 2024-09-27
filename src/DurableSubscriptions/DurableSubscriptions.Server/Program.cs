@@ -54,7 +54,7 @@ hostBuilder.ConfigureServices((context, services) =>
                     StateStoreMode = StateStoreMode.DData,
                     Role = "subscriptions"
                 })
-            .WithActors((system, registry, resolver) =>
+            .WithActors((system, _, resolver) =>
             {
                 // populate some data
                 var props = resolver.Props<ProductEventGenerator>();
@@ -65,7 +65,8 @@ hostBuilder.ConfigureServices((context, services) =>
                 HashCodeMessageExtractor.Create(50, SubscriberIdExtractor), new ShardOptions()
                 {
                     StateStoreMode = StateStoreMode.DData,
-                    Role = "subscriptions"
+                    Role = "subscriptions",
+                    ShouldPassivateIdleEntities = false
                 })
             .WithClusterClientReceptionist(role:"subscriptions")
             .AddStartup((system, registry) =>

@@ -57,11 +57,16 @@ public sealed class ClientSubscriber : UntypedActor, IWithStash, IWithTimers
                 _log.Info("Successfully started subscription for {0} on-time", _runSubscription.SubscriberId);
                 _remotePublisher = Sender;
                 Context.Watch(_remotePublisher);
+                Timers.CancelAll(); // just in case
                 TryToTransitionToReady();
                 break;
             case SubscriptionMessages.RunSubscription:
                 _log.Warning("Failed to start subscription for {0} on-time - retrying...", _runSubscription.SubscriberId);
                 TryStartSubscription();
+                break;
+            case SubscriptionMessages.SubscriptionTerminated:
+            case Terminated:
+                // ignore - old actor has died
                 break;
             default:
                 Stash.Stash();
@@ -100,7 +105,7 @@ public sealed class ClientSubscriber : UntypedActor, IWithStash, IWithTimers
                 TryStartSubscription();
                 break;
             }
-            case Terminated _:
+            case Terminated:
                 _log.Warning("Remote publisher for {0} has died - restarting subscription", _runSubscription.SubscriberId);
                 Become(Receive);
                 TryStartSubscription();

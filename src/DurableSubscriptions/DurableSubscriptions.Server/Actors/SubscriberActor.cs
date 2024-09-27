@@ -27,7 +27,7 @@ public sealed class SubscriberActor : UntypedPersistentActor, IWithTimers
     private CancellationTokenSource? _subscriptionCancellation;
     private IActorRef? _remoteSubscriber;
 
-    private AtomicCounter _pageId = new AtomicCounter(0);
+    private AtomicCounter _pageId = new(0);
     public SubscriberState State { get; private set; }
 
     public SubscriberActor(SubscriberId subscriberId)
@@ -80,7 +80,7 @@ public sealed class SubscriberActor : UntypedPersistentActor, IWithTimers
         // merge the sources together
         var combined = StreamsHelper.CombineSources(sources);
         combined
-            .Via(_subscriptionCancellation.Token.AsFlow<EventEnvelope>())
+            .Via(_subscriptionCancellation.Token.AsFlow<EventEnvelope>(true))
             .GroupedWithin(State.PageSize.Value, TimeSpan.FromSeconds(10))
             .Select(c => CreateDataPage(State.SubscriberId, c.ToList(), _pageId))
             .RunWith(Sink.ActorRefWithAck<DataPageStructure>(self, Start.Instance, AckInternalPageStream.Instance,
@@ -106,11 +106,7 @@ public sealed class SubscriberActor : UntypedPersistentActor, IWithTimers
             }
             case SubscriptionMessages.RunSubscription run:
             {
-                // we're already running a subscription, so we need to cancel it
-                ResetSubscription();
-
-                // start a new one
-                HandleRun(run);
+                // ignore
                 break;
             }
             case Start:
@@ -131,6 +127,17 @@ public sealed class SubscriberActor : UntypedPersistentActor, IWithTimers
                 _log.Error(failure.Cause, "Failed to run subscription.");
                 ResetSubscription();
                 Become(OnCommand);
+                break;
+            }
+            case SaveSnapshotSuccess success:
+            {
+                HandleSavedSnapshot(success);
+                break;
+            }
+            case DeleteSnapshotsSuccess:
+            case DeleteMessagesSuccess:
+            {
+                // ignore
                 break;
             }
             case Completed:
@@ -189,6 +196,15 @@ public sealed class SubscriberActor : UntypedPersistentActor, IWithTimers
                     State = State.Apply(currentPage);
                     Become(RunningSubscription);
                     localStreamSender.Tell(AckInternalPageStream.Instance);
+                    Persist(State, _ =>
+                    {
+                        // we need to persist the state of the subscriber
+                        // so that we can recover it in the event of a crash
+                        _log.Debug("Persisted subscriber state");
+                            
+                        if(LastSequenceNr % 10 == 0)
+                            SaveSnapshot(State);
+                    });
                     return true;
                 }
                 case SubscriptionMessages.AckPage ackPage:
@@ -202,7 +218,12 @@ public sealed class SubscriberActor : UntypedPersistentActor, IWithTimers
                     _log.Warning("Failed to receive ack for page {0} after {1} attempts. Retrying.", timeout.PageId,
                         timeout.RetryCount);
                     SchedulePageTimer(timeout);
-                    _remoteSubscriber.Tell(currentPage);
+                    _remoteSubscriber.Tell(currentPage.ToDataPage());
+                    return true;
+                }
+                case SaveSnapshotSuccess success:
+                {
+                    HandleSavedSnapshot(success);
                     return true;
                 }
                 case Terminated t when t.ActorRef.Equals(_remoteSubscriber):
@@ -219,6 +240,12 @@ public sealed class SubscriberActor : UntypedPersistentActor, IWithTimers
                     Become(OnCommand);
                     return true;
                 }
+                case DeleteSnapshotsSuccess:
+                case DeleteMessagesSuccess:
+                {
+                    // ignore
+                    return true;
+                }
                 case Completed:
                 {
                     _log.Info("Local stream has terminated.");
@@ -230,6 +257,13 @@ public sealed class SubscriberActor : UntypedPersistentActor, IWithTimers
                     return false;
             }
         };
+    }
+
+    private void HandleSavedSnapshot(SaveSnapshotSuccess success)
+    {
+        _log.Debug("Successfully saved snapshot");
+        DeleteSnapshots(new SnapshotSelectionCriteria(success.Metadata.SequenceNr - 1));
+        DeleteMessages(success.Metadata.SequenceNr);
     }
 
     protected override void OnRecover(object message)
