@@ -47,3 +47,9 @@ The tags that have data available are:
 * `data-platinum`
 
 You can use any arbitrary tags you want, but these are the ones for which we automatically generate data in the server.
+
+### Example Client Execution
+
+```bash
+dotnet run --project DurableSubscriptions.Client -- -- subscribe product-oil,product-gold --subscriber-id goldOil1
+```
